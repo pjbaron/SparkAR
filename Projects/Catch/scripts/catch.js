@@ -20,16 +20,7 @@ const Time = require('Time');
 const Random = require('Random');
 const Reactive = require('Reactive');
 const FaceTracking = require('FaceTracking');
-
-// Use export keyword to make a symbol available in scripting debug console
-export const Diagnostics = require('Diagnostics');
-
-// To use variables and functions across files, use export/import keyword
-// export const animationDuration = 10;
-// Use import keyword to import a symbol from another file
-// import { animationDuration } from './script.js'
-
-
+const Diagnostics = require('Diagnostics');
 
 
 /*
@@ -40,48 +31,20 @@ export const Diagnostics = require('Diagnostics');
 // All valid ease type strings:
 
 // "linear",
-
-// "easeInBounce",
-// "easeOutBounce",
-
-// "easeInBack",
-// "easeOutBack",
-
-// "easeInCirc",
-// "easeOutCirc",
-
-// "easeInCubic",
-// "easeOutCubic",
-
-// "easeInElastic",
-// "easeOutElastic",
-
-// "easeInExpo",
-// "easeOutExpo",
-
-// "easeInOutBack",
-// "easeInOutBounce",
-
-// "easeInOutCirc",
-// "easeInOutElastic",
-
-// "easeInOutExpo",
-// "easeInOutQuad",
-
-// "easeInOutQuart",
-// "easeInOutSine",
-
-// "easeInQuad",
-// "easeOutQuad",
-
-// "easeInQuart",
-// "easeOutQuart",
-
-// "easeInQuint",
-// "easeOutQuint",
-
-// "easeInSine",
-// "easeOutSine"
+// "easeInBounce", "easeOutBounce"
+// "easeInBack", "easeOutBack"
+// "easeInCirc", "easeOutCirc"
+// "easeInCubic", "easeOutCubic"
+// "easeInElastic", "easeOutElastic"
+// "easeInExpo", "easeOutExpo"
+// "easeInOutBack", "easeInOutBounce"
+// "easeInOutCirc", "easeInOutElastic"
+// "easeInOutExpo", "easeInOutQuad"
+// "easeInOutQuart", "easeInOutSine"
+// "easeInQuad", "easeOutQuad"
+// "easeInQuart", "easeOutQuart"
+// "easeInQuint", "easeOutQuint"
+// "easeInSine", "easeOutSine"
 
 
 const Animation = require('Animation');
@@ -89,7 +52,7 @@ const Animation = require('Animation');
 class Tween
 {
     /// @param: completedCallback - if you need a context, specify the parameter as e.g. () => thiscompleteCallbackName()
-    constructor(startVal, endVal, duration, loopCount, mirror, ease, completeCallback)
+    constructor(startVal, endVal, duration, loopCount, mirror, ease, completedCallback)
     {
         let timeDriverParams = {
             durationMilliseconds: duration * 1000,
@@ -104,20 +67,20 @@ class Tween
         }
         catch (e)
         {
-            this.sampler = Animation.samplers.linear(startVal, endVal);
+            Diagnostics.log("ERROR: Invalid ease type: " + ease);
         }
 
         this.sub = undefined;
-        if (completeCallback != null)
+        if (completedCallback)
         {
-            this.sub = this.driver.onCompleted().subscribe(completeCallback);
+            this.sub = this.driver.onCompleted().subscribe(completedCallback);
         }
 
         this.driver.start();
         this.animation = Animation.animate(this.driver, this.sampler);
     }
 
-    Kill()
+    Dispose()
     {
         this.driver.stop();
         if (this.sub)
@@ -127,6 +90,7 @@ class Tween
         this.animation = null;
         this.driver = null;
         this.sampler = null;
+        this.sub = null;
     }
 }
 
@@ -143,17 +107,15 @@ export const STATES =
 };
 
 
-
 class CatchFall
 {
-
     constructor()
     {
         // system
         this.root = Scene.root;
         this.camera = this.root.child('Device').child('Camera');
 
-        // objects
+        // objects to drop
         this.pool = this.root.find('Pool');
 
         // face tracking
@@ -168,10 +130,6 @@ class CatchFall
         // locals
         this.state = STATES.Invalid;
         
-        // lists
-        this.items = [];
-        this.dists = [];
-
         // timer to run the state machine
         this.intervalTimer = undefined;
     }
@@ -179,16 +137,6 @@ class CatchFall
 
     Start()
     {
-        //Diagnostics.watch("eating", this.eating);
-
-        // mouth tracking from the face
-        this.mouthTracker.hidden = true;
-        this.mouthTracker.position = this.mouth.center;
-
-        // retrieve all items from the pool
-        this.items = null;
-        this.pool.findByPath('*').then((x) => { this.items = x; });
-
         // start up the state machine
         this.state = STATES.Init;
         this.intervalTimer = Time.setInterval(() => this.StateMachine(), INTERVAL);
@@ -200,23 +148,32 @@ class CatchFall
         switch(this.state)
         {
             case STATES.Init:
+                // mouth tracking from the face
+                this.mouthTracker.hidden = true;
+                this.mouthTracker.position = this.mouth.center;
+
+                // retrieve all items from the pool
+                this.items = null;
+                this.pool.findByPath('*').then((x) => { this.items = x; });
+
                 this.state = STATES.WaitPool;
                 break;
+
             case STATES.WaitPool:
                 if (this.items != null)
                 {
-                    this.dists = [];
+                    this.distances = [];
                     // hide the pool items and add tracking for their distance from the user's mouth
                     for(var i = 0; i < this.items.length; i++)
                     {
                         var item = this.items[i];
                         item.hidden = true;
-                        this.dists[i] = this.mouthTracker.worldTransform.position.distance(item.worldTransform.position);
-                        //Diagnostics.watch("dist " + i.toString(), dists[i]);
+                        this.distances[i] = this.mouthTracker.worldTransform.position.distance(item.worldTransform.position);
                     }
                     this.state = STATES.Tick;
                 }
                 break;
+
             case STATES.Tick:
                 const r = Math.floor(Random.random() * this.items.length);
                 var item = this.items[r];
@@ -224,74 +181,74 @@ class CatchFall
                 {
                     item.falling = true;
                     item.hidden = false;
-                    item.tween = new Tween(0.0, BOTTOM, SPEED, 1, false, "easeInQuad", () => this.resetAtBottom());
+                    item.tween = new Tween(0.0, BOTTOM, SPEED, 1, false, "easeInQuad", () => this.ResetAtBottom());
                     item.transform.x = Random.random() * 0.2 - 0.1;
                     item.transform.y = item.tween.animation;
                 }
 
-                const caughtItem = this.catchFallingItem();
+                const caughtItem = this.CatchFallingItem();
                 if (caughtItem)
                 {
-                    this.eatFallingItem(caughtItem);
+                    this.EatItem(caughtItem);
                 }
                 break;
+
             case STATES.Catch:
                 break;
         }
     }
 
 
-    resetAtBottom()
+    ResetAtBottom()
     {
-        let item = this.findLowestItem();
+        let item = this.FindLowestItem();
         if (item)
         {
-            this.resetFallingItem(item);
+            this.ResetItemToTop(item);
         }
     }
 
 
-    resetFallingItem(item)
+    ResetItemToTop(item)
     {
+        item.falling = false;
         item.hidden = true;
         item.transform.y = 0;
         item.transform.scale = Reactive.scale(Reactive.val(1),Reactive.val(1),Reactive.val(1));
         if (item.tween)
         {
-            item.tween.Kill();
+            item.tween.Dispose();
             item.tween = null;
         }
-        item.falling = false;
     }
 
 
-    eatFallingItem(item)
+    EatItem(item)
     {
         // TODO: tween it to the exact mouth location
         // TODO: on arrival, if mouth is closed bounce off, else shrink and vanish
         if (this.eating.pinLastValue())
         {
-            //Diagnostics.log("Eating " + item.name + " " + this.eating.pinLastValue());
             item.falling = false;
 
             if (item.tween)
             {
-                item.tween.Kill();
+                item.tween.Dispose();
                 item.tween = null;
             }
 
             // shrink then remove
-            item.tween = new Tween(1.0, 0.0, 0.25, 1, false, "easeInQuad", () => this.resetFallingItem(item));
+            item.tween = new Tween(1.0, 0.0, 0.25, 1, false, "easeInQuad", () => this.ResetItemToTop(item));
             item.transform.scale = Reactive.scale(item.tween.animation, item.tween.animation, item.tween.animation);
         }
     }
 
 
-    catchFallingItem()
+    CatchFallingItem()
     {
         for(var i = 0; i < this.items.length; i++)
         {
-            if (this.items[i].falling && this.dists[i].pinLastValue() < RANGE)
+            if (this.items[i].falling && this.distances[i].pinLastValue() < RANGE)
             {
                 return this.items[i];
             }
@@ -300,7 +257,7 @@ class CatchFall
     }
 
 
-    findLowestItem()
+    FindLowestItem()
     {
         var lowest = null;
         var min = 0;
@@ -315,9 +272,8 @@ class CatchFall
         }
         return lowest;
     }
-
 }
 
 
-// create and start the demo
+// create and start the game
 new CatchFall().Start();
