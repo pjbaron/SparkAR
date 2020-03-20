@@ -167,8 +167,7 @@ class CatchFall
 
         // locals
         this.state = STATES.Invalid;
-        Diagnostics.log(this.state);
-
+        
         // lists
         this.items = [];
         this.dists = [];
@@ -180,7 +179,7 @@ class CatchFall
 
     Start()
     {
-        Diagnostics.watch("eating", this.eating);
+        //Diagnostics.watch("eating", this.eating);
 
         // mouth tracking from the face
         this.mouthTracker.hidden = true;
@@ -188,7 +187,7 @@ class CatchFall
 
         // retrieve all items from the pool
         this.items = null;
-        this.pool.findByPath('*').then((x) => { this.items = x; Diagnostics.log("Pool contains: " + this.items.length); });
+        this.pool.findByPath('*').then((x) => { this.items = x; });
 
         // start up the state machine
         this.state = STATES.Init;
@@ -198,7 +197,6 @@ class CatchFall
 
     StateMachine()
     {
-        Diagnostics.log(this.state);
         switch(this.state)
         {
             case STATES.Init:
@@ -273,7 +271,7 @@ class CatchFall
         // TODO: on arrival, if mouth is closed bounce off, else shrink and vanish
         if (this.eating.pinLastValue())
         {
-            Diagnostics.log("Eating " + item.name + " " + this.eating.pinLastValue());
+            //Diagnostics.log("Eating " + item.name + " " + this.eating.pinLastValue());
             item.falling = false;
 
             if (item.tween)
